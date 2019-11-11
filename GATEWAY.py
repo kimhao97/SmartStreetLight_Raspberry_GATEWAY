@@ -1,8 +1,8 @@
 import serial 
 import time
-print("Begin....")
+print("GATEWAY's running....")
 usb_Serial = serial.Serial(             
-               port='/dev/ttyUSB0',
+               port='/dev/ttyUSB1',
                baudrate = 9600,
                parity=serial.PARITY_NONE,
                stopbits=serial.STOPBITS_ONE,
@@ -10,8 +10,11 @@ usb_Serial = serial.Serial(
                timeout=1
     )
 
+dataLoraRceive = list()
 while 1:
-
+  global dataLoraRceive
 	if usb_Serial.inWaiting()>0:
-		x=usb_Serial.readline()
-		print(x)
+		dataLoraRceive=usb_Serial.readline()
+    print(dataLoraRceive[1])
+  print(dataLoraRceive[2])
+  
