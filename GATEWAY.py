@@ -21,7 +21,7 @@ if (not len(firebase_admin._apps)):
 # 		usbFTD = str(p).split(' ')			
 # print(usbFTD[0])
 usb_Serial = serial.Serial(             
-							 port='/dev/ttyUSB3',
+							 port='/dev/ttyUSB0',
 							 baudrate = 9600,
 							 parity=serial.PARITY_NONE,
 							 stopbits=serial.STOPBITS_ONE,
@@ -64,11 +64,10 @@ def setNotification(data):
 
 def checkLoraReceive(loraData, adrr_a, adrr_b, adrr_c):
 	if len(loraData) == CONST.LORA_DATA_RANGE:
-		if loraData[CONST.CRC_LOCATION] == CRCvalue(loraData, CONST.LORA_DATA_RANGE):
-			if loraData[0] == adrr_a and loraData[1] == adrr_b and loraData[2] == adrr_c:
-				return 1
-	else: 
-		return 0
+		if loraData[CONST.CRC_LOCATION] == CRCvalue(loraData, CONST.LORA_DATA_RANGE) and loraData[0] == adrr_a and loraData[1] == adrr_b and loraData[2] == adrr_c:
+			return 1
+		else: return 0 
+	return 0
 
 def CRCvalue(loraData, size):
 	temp = 0
@@ -114,22 +113,21 @@ def dataUpdateRequest():
 	global timeBegin
 	if (millis() - timeBegin) > CONST.TIME_OUT:
 		timeBegin = millis()
-		rData = sendDataUpdateRequest(CONST.LIGHT_1_A, CONST.LIGHT_1_B, CONST.LIGHT_1_C)
-		if rData : 
-			pass
-		else: setNotification("SENDING ERROR")
+		counter = 1
+		while counter <= CONST.COUNT_LIMIT:
+			counter +=1
+			rData = sendDataUpdateRequest(CONST.LIGHT_1_A, CONST.LIGHT_1_B, CONST.LIGHT_1_C)
+			if rData : 
+				break
+			else: setNotification("SENDING ERROR")
 def sendDataUpdateRequest(adrr_a, adrr_b, adrr_c):
-	data = [adrr_a, adrr_b, adrr_c, 0x00]
+	data = [adrr_a, adrr_b, adrr_c, 0x96]
 	data.append(CRCvalue(data, 5))
 	dataSend = bytearray(data)
 	usb_Serial.write(dataSend)
-	usb_Serial.flush()
-	counter = 1
-	refundValue = 0
-	while counter <= CONST.COUNT_LIMIT and refundValue == 0:
-		counter +=1
-		return receiveLoraData(2000)		
-def receiveLoraData(timeout):
+	usb_Serial.flush()	
+	return receiveLoraUpdateRequest(2000)		
+def receiveLoraUpdateRequest(timeout):
 	dataLoraReceive = list()
 	startTime = millis()
 	while (millis() - startTime) <= timeout:
@@ -141,14 +139,53 @@ def receiveLoraData(timeout):
 			return updateDataToFirebase(dataLoraReceive, CONST.LIGHT_1_A, CONST.LIGHT_1_B, CONST.LIGHT_1_C)		
 	return  0 
 
+def DimmerRequest():
+	global DimerDataFirebaseBefore
+	global timeBegin
+	for i in range(1 , CONST.NUMBER_OF_LIGHT + 1):
+		counter = 1
+		firebaseData = getDimmerFirebase(i)
+		if DimerDataFirebaseBefore[i] != firebaseData:
+			DimerDataFirebaseBefore[i] = firebaseData
+			while sendDimmerRequest(CONST.LIGHT_1_A, CONST.LIGHT_1_B, CONST.LIGHT_1_C, firebaseData) == 0 and counter < CONST.COUNT_LIMIT:
+				counter +=1
+			timeBegin = millis()
+def sendDimmerRequest(adrr_a, adrr_b, adrr_c, dimerData):
+	data = [adrr_a, adrr_b, adrr_c, dimerData]
+	crcData = CRCvalue(data, 5)
+	data.append(crcData)
+	dataSend = bytearray(data)
+	usb_Serial.write(dataSend)
+	usb_Serial.flush()		
+	return receiveLoraDimmerRequest(2000, crcData)
+def receiveLoraDimmerRequest(timeout, crc):
+	dataLoraReceive = list()
+	startTime = millis()
+	while (millis() - startTime) <= timeout:
+		if usb_Serial.inWaiting()>0:
+			dataLoraReceive = usb_Serial.readline()	
+			print(dataLoraReceive)
+			print("Length = {}".format(len(dataLoraReceive)))
+			print("crc = {}".format(CRCvalue(dataLoraReceive, 4)))
+			if len(dataLoraReceive) == 4 and dataLoraReceive[3] == crc:
+				print("___________________________________")
+				return 1	
+			else: return 0
+	return  0 	
+def getDimmerFirebase(pos):
+	data = db.reference('Smartlight/dimmer request/light_%s'%(str(pos))).get()
+	print(data)
+	return data 
 def millis():
     return round(time.time()*1000)
 
 txt = 0
 timeBegin = millis()
-while 1:	
-	dataUpdateRequest()
-
+DimerDataFirebaseBefore = [0,0,0]
+priorityRequest = 1
+while 1:
+	dataUpdateRequest()		
+	DimmerRequest()
 	# usb_Serial.write(bytes([0xC1]))
 	# usb_Serial.flush()
 	# time.sleep(2)
