@@ -15,13 +15,18 @@ if (not len(firebase_admin._apps)):
     cred = credentials.Certificate(firebaseCertFile)    
     firebase_admin.initialize_app(cred, {'databaseURL': databaseURL})
 
-# ports = list(serial.tools.list_ports.comports())
-# for p in ports:
-# 	if("FT232R USB UART" in p):
-# 		usbFTD = str(p).split(' ')			
-# print(usbFTD[0])
+ports = list(serial.tools.list_ports.comports())
+
+for p in ports:	
+	if("USB2.0-Serial" in p):
+		usbFTD = str(p).split(' ')	
+	if("FT232R USB UART" in p):
+		usbFTD = str(p).split(' ')
+	if("CP2102 USB to UART Bridge Controller" in p):
+		usbFTD = str(p).split(' ')			
+print(usbFTD[0])
 usb_Serial = serial.Serial(             
-							 port='/dev/ttyUSB0',
+							 port= usbFTD[0],
 							 baudrate = 9600,
 							 parity=serial.PARITY_NONE,
 							 stopbits=serial.STOPBITS_ONE,
@@ -50,7 +55,7 @@ def setPowerFirebase(data, lightPosition):
 def setEnergyFirebase(data, lightPosition):
 	db.reference('Smartlight/power/consumpt_%s'%(str(lightPosition))).set(data)
 def setDimFirebase(data, lightPosition):
-	db.reference('Smartlight/dimmer/light_%s'%(str(lightPosition))).set(data)	
+	db.reference('Smartlight/dimmer request/light_%s/dimmer%s'%(str(lightPosition), str(lightPosition))).set(data)	
 def setHumidityFirebase(data):
 	db.reference('Smartlight/sensors/humidity').set(data)
 def setTemperatureFirebase(data):
@@ -128,14 +133,15 @@ def sendDataUpdateRequest(adrr_a, adrr_b, adrr_c):
 	usb_Serial.flush()	
 	return receiveLoraUpdateRequest(2000)		
 def receiveLoraUpdateRequest(timeout):
+	global txt
 	dataLoraReceive = list()
 	startTime = millis()
 	while (millis() - startTime) <= timeout:
 		# print("__________________________________")
 		if usb_Serial.inWaiting()>0:
 			dataLoraReceive = usb_Serial.readline()	
-			print(dataLoraReceive)
-			print("Length = {}".format(len(dataLoraReceive)))
+			print("_{}: {}  Length: {}".format(txt + 1, dataLoraReceive, len(dataLoraReceive))) 
+			# print("Length = {}".format(len(dataLoraReceive)))
 			return updateDataToFirebase(dataLoraReceive, CONST.LIGHT_1_A, CONST.LIGHT_1_B, CONST.LIGHT_1_C)		
 	return  0 
 
@@ -185,7 +191,7 @@ DimerDataFirebaseBefore = [0,0,0]
 priorityRequest = 1
 while 1:
 	dataUpdateRequest()		
-	DimmerRequest()
+	# DimmerRequest()
 	# usb_Serial.write(bytes([0xC1]))
 	# usb_Serial.flush()
 	# time.sleep(2)
