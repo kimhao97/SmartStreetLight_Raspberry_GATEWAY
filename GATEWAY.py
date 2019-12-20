@@ -149,7 +149,7 @@ def sendDataUpdateRequest(adrr_a, adrr_b, adrr_c):
 	dataSend = bytearray(data)
 	usb_Serial.write(dataSend)
 	usb_Serial.flush()	
-	return receiveLoraUpdateRequest(2000)		
+	return receiveLoraUpdateRequest(20000)		
 def receiveLoraUpdateRequest(timeout):
 	global txt
 	dataLoraReceive = list()
