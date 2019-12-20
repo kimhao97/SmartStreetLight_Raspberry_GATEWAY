@@ -92,7 +92,7 @@ def CRCvalue(loraData, size):
 			print("ERROR CRC")
 	return (temp & 0xff)
 
-def voltagePZEM(data):	
+def voltagePZEM(data):
 	t = (data[3] << 8) + data[4] + (data[5] / 10.0)
 	if t >= CONST.MIN_AC_VOLTAGE and t <= CONST.MAX_AC_VOLTAGE :
 		return t
@@ -100,6 +100,7 @@ def voltagePZEM(data):
 def currentPZEM(data):
 	return (data[6] + (data[7] / 100.0))
 def powerPZEM(data):
+	# if voltagePZEM(data) == 0:	return 0
 	t = (data[8] << 8) + data[9]
 	if t > 1000:
 		if data[22] == 0: return 18
@@ -108,7 +109,7 @@ def powerPZEM(data):
 def energyPZEM(data):
 	t = (data[10] << 16) + (data[11] << 8) + data[12]
 	if t > 1000:
-		return 73
+		return 103
 	else: return t
 def dimData(data):
 	return data[22]
