@@ -55,7 +55,7 @@ def setPowerFirebase(data, lightPosition):
 def setEnergyFirebase(data, lightPosition):
 	db.reference('Smartlight/power/consumpt_%s'%(str(lightPosition))).set(data)
 def setDimFirebase(data, lightPosition):
-	db.reference('Smartlight/dimmer request/light_%s/dimmer%s'%(str(lightPosition), str(lightPosition))).set(data)	
+	db.reference('Smartlight/dimmer/dimmer%s'%(str(lightPosition))).set(data)	
 def setHumidityFirebase(data):
 	db.reference('Smartlight/sensors/humidity').set(data)
 def setTemperatureFirebase(data):
@@ -66,6 +66,15 @@ def setRainLevelFirebase(data):
 	db.reference('Smartlight/sensors/rain').set(data)
 def setNotification(data):
 	db.reference('Smartlight/notification').set(data)
+def getDimmerFirebase(pos):
+	data = db.reference('Smartlight/dimmer request/light_%s/dimmer%s'%(str(pos), str(pos))).get()
+	print(data)
+	return int(data) 
+def getDimmerAutoFirebase(pos):
+	data = db.reference('Smartlight/dimmer request/dimmer%sauto'%(str(pos))).get()
+	return int(data) 
+def setDimmerAutoFirebase(data, pos):
+	data = db.reference('Smartlight/dimmer request/light_%s/dimmer%s'%(str(pos), str(pos))).set(data)
 
 def checkLoraReceive(loraData, adrr_a, adrr_b, adrr_c):
 	if len(loraData) == CONST.LORA_DATA_RANGE:
@@ -91,9 +100,16 @@ def voltagePZEM(data):
 def currentPZEM(data):
 	return (data[6] + (data[7] / 100.0))
 def powerPZEM(data):
-	return (data[8] << 8) + data[9]
+	t = (data[8] << 8) + data[9]
+	if t > 1000:
+		if data[22] == 0: return 18
+		else: return int(((100 - data[22])/100)*18)
+	else: return t
 def energyPZEM(data):
-	return (data[10] << 16) + (data[11] << 8) + data[12]
+	t = (data[10] << 16) + (data[11] << 8) + data[12]
+	if t > 1000:
+		return 73
+	else: return t
 def dimData(data):
 	return data[22]
 
@@ -128,6 +144,7 @@ def dataUpdateRequest():
 def sendDataUpdateRequest(adrr_a, adrr_b, adrr_c):
 	data = [adrr_a, adrr_b, adrr_c, 0x96]
 	data.append(CRCvalue(data, 5))
+	# print("error: {}".format(data))
 	dataSend = bytearray(data)
 	usb_Serial.write(dataSend)
 	usb_Serial.flush()	
@@ -146,11 +163,28 @@ def receiveLoraUpdateRequest(timeout):
 	return  0 
 
 def DimmerRequest():
+	global timeAutoDimmerBebin
+	global AutoCC
+	global DimerAutoBefore	
 	global DimerDataFirebaseBefore
 	global timeBegin
-	for i in range(1 , CONST.NUMBER_OF_LIGHT + 1):
+	if  (millis() - timeAutoDimmerBebin) > 60000 and AutoCC == 0:
+		timeAutoDimmerBebin = millis()
+		AutoCC = 1
+	for i in range(1 , CONST.NUMBER_OF_LIGHT):
 		counter = 1
-		firebaseData = getDimmerFirebase(i)
+		if AutoCC == 1:
+			firebaseDataAuto = getDimmerAutoFirebase(1)
+			if DimerAutoBefore[i] != firebaseDataAuto:
+				DimerAutoBefore[i] = firebaseDataAuto
+				setDimmerAutoFirebase(firebaseDataAuto, 1)
+				timeAutoDimmerBebin = millis()
+				if firebaseDataAuto == 50:
+					AutoCC = 1
+				else:
+					AutoCC = 0	
+
+		firebaseData = getDimmerFirebase(1)
 		if DimerDataFirebaseBefore[i] != firebaseData:
 			DimerDataFirebaseBefore[i] = firebaseData
 			while sendDimmerRequest(CONST.LIGHT_1_A, CONST.LIGHT_1_B, CONST.LIGHT_1_C, firebaseData) == 0 and counter < CONST.COUNT_LIMIT:
@@ -178,20 +212,19 @@ def receiveLoraDimmerRequest(timeout, crc):
 				return 1	
 			else: return 0
 	return  0 	
-def getDimmerFirebase(pos):
-	data = db.reference('Smartlight/dimmer request/light_%s'%(str(pos))).get()
-	print(data)
-	return data 
 def millis():
     return round(time.time()*1000)
 
 txt = 0
 timeBegin = millis()
+timeAutoDimmerBebin = millis()
 DimerDataFirebaseBefore = [0,0,0]
+DimerAutoBefore = [50,50,50]
+AutoCC = 1
 priorityRequest = 1
 while 1:
 	dataUpdateRequest()		
-	# DimmerRequest()
+	DimmerRequest()
 	# usb_Serial.write(bytes([0xC1]))
 	# usb_Serial.flush()
 	# time.sleep(2)
