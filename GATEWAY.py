@@ -36,6 +36,7 @@ usb_Serial = serial.Serial(
 print("GATEWAY's running....")
 def updateDataToFirebase(loraData, light_addr_a, ligh_addr_b, light_addr_c):
 	global txt
+	global timeBegin
 	txt +=1
 	if checkLoraReceive(loraData, light_addr_a, ligh_addr_b, light_addr_c):
 		setPowerFirebase(powerPZEM(loraData), 1)
@@ -46,8 +47,10 @@ def updateDataToFirebase(loraData, light_addr_a, ligh_addr_b, light_addr_c):
 		setWaterLevelFirebase(waterLevel(loraData))
 		setRainLevelFirebase(weather(loraData))
 		db.reference('Smartlight/sensors/test').set(txt)
+		timeBegin = millis()
 		return 1
-	else: 
+	else:
+		timeBegin = millis() 
 		return 0
 
 def setPowerFirebase(data, lightPosition):
@@ -134,7 +137,7 @@ def weather(data):
 def dataUpdateRequest():
 	global timeBegin
 	if (millis() - timeBegin) > CONST.TIME_OUT:
-		timeBegin = millis()
+		# timeBegin = millis()
 		counter = 1
 		while counter <= CONST.COUNT_LIMIT:
 			counter +=1
@@ -190,7 +193,7 @@ def DimmerRequest():
 			DimerDataFirebaseBefore[i] = firebaseData
 			while sendDimmerRequest(CONST.LIGHT_1_A, CONST.LIGHT_1_B, CONST.LIGHT_1_C, firebaseData) == 0 and counter < CONST.COUNT_LIMIT:
 				counter +=1
-			timeBegin = millis()
+	# timeBegin = millis()		
 def sendDimmerRequest(adrr_a, adrr_b, adrr_c, dimerData):
 	data = [adrr_a, adrr_b, adrr_c, dimerData]
 	crcData = CRCvalue(data, 5)
@@ -217,12 +220,12 @@ def millis():
     return round(time.time()*1000)
 
 txt = 0
-timeBegin = millis()
 timeAutoDimmerBebin = millis()
 DimerDataFirebaseBefore = [0,0,0]
 DimerAutoBefore = [50,50,50]
 AutoCC = 1
 priorityRequest = 1
+timeBegin = millis()
 while 1:
 	dataUpdateRequest()		
 	DimmerRequest()
